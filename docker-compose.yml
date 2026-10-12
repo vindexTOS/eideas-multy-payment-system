@@ -1,0 +1,48 @@
+# One command brings up the whole platform: `docker compose up -d --build`.
+#
+# The database is deliberately NOT in here - it is a dedicated Postgres host
+# outside docker. `host.docker.internal` + the host-gateway mapping below is
+# what lets the container reach a Postgres running on this machine; point
+# DB_HOST at the real server in production.
+
+services:
+  server:
+    build:
+      context: ./server
+    image: eideas/payment-server:latest
+    container_name: eideas-pay-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      API_PREFIX: api
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      # Exposed for Swagger and direct debugging; the browser uses nginx.
+      - '${SERVER_PORT:-4000}:4000'
+    networks:
+      - eideas
+
+  client:
+    build:
+      context: ./client
+      args:
+        # Empty = relative /api, proxied by nginx to the server service.
+        VITE_API_BASE_URL: ''
+    image: eideas/payment-client:latest
+    container_name: eideas-pay-client
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_started
+    ports:
+      - '${CLIENT_PORT:-8080}:80'
+    networks:
+      - eideas
+
+networks:
+  eideas:
+    driver: bridge
