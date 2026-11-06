@@ -9,15 +9,19 @@ import { FrameCodec } from './frame.codec';
 import { FallbackHandler } from './handlers/fallback.handler';
 import { HeartbeatHandler } from './handlers/heartbeat.handler';
 import { PaymentHandler } from './handlers/payment.handler';
+import { TerminalOperationHandler } from './handlers/terminal-operation.handler';
+import { TerminalStatusHandler } from './handlers/terminal-status.handler';
 import { DEVICE_EVENT_HANDLERS } from './interfaces/mqtt-message.interface';
 import { MqttController } from './mqtt.controller';
 import { MqttRouterService } from './mqtt-router.service';
 import { MqttService } from './mqtt.service';
 import { PaymentFrameParser } from './payment-frame.parser';
+import { TerminalCommandsService } from './terminal-commands.service';
+import { TerminalController } from './terminal.controller';
 
 /**
- * The listener. Adding a new device event = write a handler and list it in
- * `handlers` below; nothing else in the module changes.
+ * The listener. Adding a new device event = write a handler (claiming its
+ * VIDs) and list it in `handlers` below; nothing else in the module changes.
  */
 @Module({
   imports: [
@@ -26,22 +30,31 @@ import { PaymentFrameParser } from './payment-frame.parser';
     PaymentsModule,
     DeviceRegistryModule,
   ],
-  controllers: [MqttController],
+  controllers: [MqttController, TerminalController],
   providers: [
     FrameCodec,
     PaymentFrameParser,
     DeviceMessageService,
     PaymentHandler,
+    TerminalStatusHandler,
+    TerminalOperationHandler,
     HeartbeatHandler,
     FallbackHandler,
     {
       provide: DEVICE_EVENT_HANDLERS,
-      inject: [PaymentHandler, HeartbeatHandler, FallbackHandler],
+      inject: [
+        PaymentHandler,
+        TerminalStatusHandler,
+        TerminalOperationHandler,
+        HeartbeatHandler,
+        FallbackHandler,
+      ],
       useFactory: (...handlers: object[]) => handlers,
     },
     MqttRouterService,
     MqttService,
+    TerminalCommandsService,
   ],
-  exports: [MqttService, MqttRouterService],
+  exports: [MqttService, MqttRouterService, TerminalCommandsService],
 })
 export class MqttModule {}

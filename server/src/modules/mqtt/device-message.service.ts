@@ -4,7 +4,27 @@ import { Repository } from 'typeorm';
 import { PaginatedResult } from '../../shared/dto/paginated-result.dto';
 import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto';
 import { DeviceMessage } from './entities/device-message.entity';
-import { MqttInboundMessage } from './interfaces/mqtt-message.interface';
+import { MqttInboundMessage, VidRecord } from './interfaces/mqtt-message.interface';
+import {
+  OPERATION_MODE_LABELS,
+  OPERATION_RESULT_LABELS,
+  OPERATION_VIDS,
+  VID,
+  hexVid,
+} from './protocol/terminal-protocol';
+
+/**
+ * Postgres jsonb refuses "\u0000", and a binary payload decoded as utf8 is
+ * full of NULs (an idle status is a single 0x00). Without this the row is
+ * rejected and the frame silently missing from the log. The hex keeps the
+ * real bytes.
+ */
+const withoutNul = (value: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(
+    JSON.stringify(value, (_key, v: unknown) =>
+      typeof v === 'string' ? v.replace(/\u0000/g, '') : v,
+    ),
+  ) as Record<string, unknown>;
 
 /** Append-only audit log of everything the broker delivered. */
 @Injectable()
@@ -27,7 +47,7 @@ export class DeviceMessageService {
           deviceUid: message.topic.deviceUid || null,
           event: message.topic.event?.slice(0, 64) ?? null,
           payloadHex: message.frame.hex,
-          decoded: this.describe(message),
+          decoded: withoutNul(this.describe(message)),
           handledBy: outcome.handledBy ?? null,
           error: outcome.error ?? null,
           receivedAt: message.receivedAt,
@@ -68,7 +88,22 @@ export class DeviceMessageService {
       command: frame.command,
       length: frame.length,
       json: frame.json,
+      records: frame.records?.map((record) => this.describeRecord(record)),
+      protocolError: frame.protocolError ?? undefined,
       payloadUtf8: frame.payload.length <= 256 ? frame.payload.toString('utf8') : undefined,
     };
+  }
+
+  /** `{ vid: '0x81', key: 'payment', value: 1, meaning: 'Success' }` - readable in the log. */
+  private describeRecord(record: VidRecord): Record<string, unknown> {
+    const { vid, value } = record;
+    let meaning: string | undefined;
+    if (value !== null) {
+      if (OPERATION_VIDS.includes(vid)) meaning = OPERATION_RESULT_LABELS[value];
+      else if (vid === VID.PAYMENT_STATUS)
+        meaning = value === 0 ? 'Idle' : value === 1 ? 'Busy' : undefined;
+      else if (vid === VID.OPERATION_MODE) meaning = OPERATION_MODE_LABELS[value];
+    }
+    return { vid: hexVid(vid), key: record.key, value, meaning, hex: record.hex };
   }
 }

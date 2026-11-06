@@ -14,7 +14,8 @@ eideas-multy-payment-system/
 ├─ docker-compose.yml      one command for the whole platform
 ├─ .env                    compose + server config (copy of .env.example)
 ├─ server/                 NestJS API, MQTT listener, earnings engine
-└─ client/                 React admin panel
+├─ client/                 React admin panel
+└─ emulator/               virtual terminals for testing (a separate app; see emulator/README.md)
 ```
 
 ## Quick start
@@ -188,32 +189,95 @@ outbound   {root}/{deviceUid}/commands/{command}
 
 Pipeline: **decode → identify → audit → dispatch**
 
-1. `FrameCodec` decodes the frame. Binary framing is the same shape the lift
-   terminals speak (`u32 timestamp`, `u8 command`, `u8 length`, payload); a
-   JSON payload is parsed as JSON. Nothing is ever dropped — the raw hex is
+1. `FrameCodec` decodes the frame: the timestamp, then the terminal
+   protocol's `[VID][len][value]` records (next section). A JSON payload (the
+   simulator) is parsed as JSON. Nothing is ever dropped — the raw hex is
    always kept.
 2. An unknown device id is recorded in **unregistered devices**, which is the
    dropdown the create-device form picks from. Onboarding is self-service:
    plug the terminal in, it talks, it appears in the admin inbox.
-3. Every frame is appended to `device_messages` (topic, hex, decoded, handler,
-   error) — the audit trail, and the way we will reverse-engineer the protocol.
-4. A typed handler claims the event. Adding an event means adding a file:
+3. Every frame is appended to `device_messages` (topic, hex, decoded records
+   by name, handler, error) — the audit trail. A frame a handler failed on, or
+   one that looked like VID records but did not decode, is kept even with
+   `MQTT_LOG_RAW=false`.
+4. Typed handlers claim VIDs. Every handler claiming a VID in the frame runs
+   once, independently (one failing does not stop the others). JSON frames
+   are routed by the topic's event segment instead. Adding an event means
+   adding a file:
 
 ```ts
 @Injectable()
-export class RefundHandler implements DeviceEventHandler {
-  readonly event = 'refund';
-  readonly name = 'refund';
-  async handle(message: MqttInboundMessage) { /* ... */ }
+export class TamperHandler implements DeviceEventHandler {
+  readonly event = 'tamper';     // JSON / simulator route
+  readonly vids = [0xc0];        // terminal-protocol route
+  readonly name = 'tamper';
+  async handle(message: MqttInboundMessage) { /* message.frame.records */ }
 }
 ```
 
 …then listing it in `mqtt.module.ts`. No growing if/else chain, which is what
 the old Express listener became.
 
+Frames from one terminal are applied in the order it sent them (dispatch is
+chained per device), so `busy` then `idle` never lands as `idle` then `busy`.
+Different terminals still run in parallel.
+
 Idempotency: QoS 1 is at-least-once, so a payment carries a unique
-`externalRef` (`{deviceUid}:{ref}`). A redelivered frame returns the existing
-payment instead of double-counting money.
+`externalRef`. A redelivered frame returns the existing payment instead of
+double-counting money. The terminal protocol has no transaction id, so the
+key is `{deviceUid}:{device clock}-{hash of the frame}`: a redelivery is
+byte-identical, and one terminal cannot take two payments in the same second.
+When the device clock is not believable (unset, or counting from boot) there
+is no key at all — a double count can be reversed, a real payment dropped as
+a "duplicate" cannot.
+
+### Terminal protocol (VIDs)
+
+Defined once, in `server/src/modules/mqtt/protocol/terminal-protocol.ts`, and
+served as JSON from `GET /api/mqtt/protocol`. Both directions use the same
+frame:
+
+```
+[timestamp 4B] [VID 1B][len 1B][value] [VID 1B][len 1B][value] ...
+```
+
+A one-record frame is byte-for-byte the lift terminals' `[ts][cmd][len][payload]`
+with the VID in the command byte. Multi-byte values are little-endian.
+
+| VIDs | Direction | What the server does |
+|---|---|---|
+| `0x01`–`0x08` configs | server → terminal | Saved per device (`devices.config`, spec defaults until set) and pushed all together in one frame on every change |
+| `0x50` set amount (tetri) | server → terminal | `POST /devices/:id/commands/amount` |
+| `0x51` reconciliation | server → terminal | `POST /devices/:id/commands/reconcile`; the answer is `0xBB` |
+| `0x80` amount + `0x81` payment | terminal → server | **Success** / **Partly Success** books a payment (amount ÷ 100 = GEL). Any other result is recorded on the device, not booked |
+| `0x82` payment status | terminal → server | `devices.terminal_state.paymentStatus` = `idle` / `busy` |
+| `0x84` `0x95` `0x9A` `0x9D` `0xB5` `0xBB` | terminal → server | Recorded as `terminal_state.lastOperation` (and `lastReconciliation`) |
+
+Every outbound value is range-checked against the spec before it is sent
+(the API answers 400 first, and the encoder refuses as a second line). An
+inbound amount outside 1–10000 tetri is not booked and is logged with the
+reason, which is also what a byte-order mismatch looks like.
+
+A successful **void / return / cancel does not reverse a payment by itself.**
+With no transaction id, picking "which payment" would be a guess, and a wrong
+guess silently removes real money from a company's earnings. It is logged as
+a warning; reverse the payment from the payments page.
+
+**To confirm with the firmware author** — each is one constant to change:
+
+1. Several records in one frame, with `0x80` in the same frame as its `0x81`
+   (a `0x81` without an amount is refused, not paired with an earlier frame).
+2. Little-endian `UINT16` (`VALUE_BYTE_ORDER`). The device clock is accepted
+   in either byte order.
+3. Partly Success: is `0x80` then the approved amount? It is booked at `0x80`,
+   flagged `partial` on the row (`BOOKABLE_RESULTS` in the parser).
+4. `0x84` and `0x9A` are both called "Cancel Transaction" in the spec.
+5. Operation Mode lists 1–7 but the range column says 32; 1–7 is enforced.
+6. "Country Code" defaults to `0x3D5` = 981, which is the ISO 4217 code of
+   the lari, not a country code (Georgia's is 268). Harmless if the firmware
+   just expects that value.
+7. There is no device acknowledgement. "Sent" means the broker accepted the
+   frame; `configSentAt` is the broker's word, not the terminal's.
 
 ### Testing the pipeline with no device and no broker
 
@@ -221,14 +285,22 @@ payment instead of double-counting money.
 curl -X POST http://localhost:4000/api/mqtt/simulate \
   -H 'Authorization: Bearer <admin token>' \
   -H 'Content-Type: application/json' \
-  -d '{"deviceUid":"TERM-0001","event":"payment","payload":{"amount":12.5,"ref":"A-1001"}}'
+  -d '{"deviceUid":"TERM-0001","records":[{"vid":128,"value":1250},{"vid":129,"value":1}]}'
 ```
+
+`records` is encoded into a real terminal frame (`0x80` = 1250 tetri, `0x81` =
+Success). `payloadHex` sends exact bytes instead, for malformed frames, and
+`payload` sends JSON (`{"amount":12.5,"ref":"A-1001"}`).
 
 This runs the real path: decode → registry → handler → payment → earnings.
 Call it once for an unknown id to make it appear under **Unregistered
 devices**, register it in the UI, then call it again to see the money land on
 the device's charts. `GET /api/mqtt/status` shows the broker connection and
 dispatch counters; `GET /api/mqtt/messages` is the raw frame log.
+
+For a terminal that talks over a real broker, and receives config and
+commands back, use the [terminal emulator](emulator/README.md). It runs on its
+own and is not part of this compose file.
 
 ## API map
 
@@ -240,11 +312,15 @@ dispatch counters; `GET /api/mqtt/messages` is the raw frame log.
 | GET/POST/PATCH/DELETE | `/api/sites` | write: admin, company |
 | GET/POST/PATCH/DELETE | `/api/devices` | write: admin |
 | GET | `/api/devices/:id/earnings` | any (scoped) |
+| GET | `/api/devices/:id/config` | any (scoped) |
+| PATCH / POST | `/api/devices/:id/config`, `/config/push` | admin |
+| POST | `/api/devices/:id/commands/amount`, `/commands/reconcile` | admin |
 | GET | `/api/earnings`, `/api/earnings/devices/:id`, `/api/earnings/sites/:id` | any (scoped) |
 | GET/POST | `/api/payments`, `PATCH /:id/reverse` | read: any · write: admin |
 | GET/POST/PATCH/DELETE | `/api/users` | admin, company |
 | GET/PATCH/DELETE | `/api/unregistered-devices` | admin |
 | GET/POST | `/api/mqtt/status`, `/messages`, `/simulate`, `/publish` | admin |
+| GET | `/api/mqtt/protocol` | any |
 | GET | `/api/health` | public |
 
 Full schema with request/response shapes: `/api/docs`.
@@ -255,9 +331,10 @@ Full schema with request/response shapes: `/api/docs`.
 cd server && npm test        # builds, then runs node --test
 ```
 
-24 checks over the rules the money depends on: the commission choice, the
+50 checks over the rules the money depends on: the commission choice, the
 month-window boundaries (including leap February), topic parsing, the frame
-codec, and the payment parser. They run against the compiled output, so there
+codec, the terminal protocol (record decoding, range checks, idempotency
+keys, declined and malformed payments), VID routing, and config merging. They run against the compiled output, so there
 is no test-runner dependency in the tree.
 
 ## Languages
@@ -281,20 +358,17 @@ localStorage.
 
 ## Assumptions made (worth confirming with the client)
 
-The device documentation does not exist yet, and the brief left a few things
-open. Where a decision was needed, this is what was chosen and why:
+The brief left a few things open (the terminal protocol's open points are
+listed under [Terminal protocol](#terminal-protocol-vids)). Where a decision was needed, this is what was chosen and why:
 
 1. **The minimum tariff is a floor per payment, not per month.** "Deducts the
    minimum from the incoming total" reads both ways. Per-payment is what a
    terminal fee normally means, and it is the only reading that lets the
    commission be frozen on the row. If it turns out to be a monthly floor,
    `CommissionService` is the only file that changes.
-2. **Binary payment frames are not booked until the protocol is confirmed.**
-   Guessing a byte offset means inventing money. JSON frames work today;
-   binary frames are logged with their hex and skipped, with a warning. Once
-   the spec lands, set `MQTT_BINARY_PAYMENTS=true` (and check
-   `MQTT_PAYMENT_COMMAND` / `MQTT_AMOUNT_DIVISOR` against it) — the assumed
-   layout is documented in `payment-frame.parser.ts`.
+2. **Terminal money is booked only from what the spec defines** — a `0x81`
+   result under which money moved, with its `0x80` amount in range. Anything
+   else is kept in `device_messages` with the reason, never guessed at.
 3. **Payments from an unregistered device are stored but not booked.** They
    cannot be attributed to a company. The frame is in `device_messages` and
    the id is in the unregistered pool, so nothing is lost — but the money only
@@ -322,7 +396,11 @@ open. Where a decision was needed, this is what was chosen and why:
 - `DB_SYNCHRONIZE=true` is fine while the schema moves; switch to `false` and
   generate the first migration (`npm run migration:generate`) before going
   live.
-- Decode the real device protocol and replace the tolerant parser.
+- Confirm the terminal-protocol open points with the firmware author.
+- Admin UI for terminal config and commands (the API is there:
+  `/devices/:id/config`, `/devices/:id/commands/*`, `/mqtt/protocol`).
+- Push the config automatically when a terminal is registered (today it is
+  pushed on save, or with `POST /devices/:id/config/push`).
 - Earnings export (xlsx/csv) and a date-range picker beyond "last N months".
 - Wallet controller + the mobile app's top-up flow (phase 2).
 - Map view of objects, once addresses are geocoded.

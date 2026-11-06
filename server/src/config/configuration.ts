@@ -35,14 +35,10 @@ export interface MqttConfig {
   qos: 0 | 1 | 2;
   /** Root namespace of every topic this platform owns, e.g. `Pay`. */
   rootTopic: string;
-  /** Persist every inbound frame into device_messages (useful until device docs land). */
+  /** Persist every inbound frame into device_messages (the audit trail). */
   logRawMessages: boolean;
-  /** Opcode that carries a payment, once the device spec confirms it. */
-  paymentCommand: number;
   /** Minor-unit divisor (100 = tetri -> lari). */
   amountDivisor: number;
-  /** Guard rail: book money from undocumented BINARY frames only when true. */
-  binaryPaymentsEnabled: boolean;
 }
 
 export interface SeedConfig {
@@ -101,9 +97,7 @@ export default (): Configuration => ({
     qos: toInt(process.env.MQTT_QOS, 1) as 0 | 1 | 2,
     rootTopic: process.env.MQTT_ROOT_TOPIC ?? 'Pay',
     logRawMessages: toBool(process.env.MQTT_LOG_RAW, true),
-    paymentCommand: toInt(process.env.MQTT_PAYMENT_COMMAND, 4),
     amountDivisor: toInt(process.env.MQTT_AMOUNT_DIVISOR, 100),
-    binaryPaymentsEnabled: toBool(process.env.MQTT_BINARY_PAYMENTS, false),
   },
   seed: {
     adminEmail: process.env.SEED_ADMIN_EMAIL ?? 'admin@eideas.io',

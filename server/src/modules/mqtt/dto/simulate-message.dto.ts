@@ -1,6 +1,34 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PaginationQueryDto } from '../../../shared/dto/pagination-query.dto';
+
+export class SimulateRecordDto {
+  @ApiProperty({ example: 0x81, description: 'VID, e.g. 128 (0x80) or 129 (0x81)' })
+  @IsInt()
+  @Min(0)
+  @Max(255)
+  vid: number;
+
+  @ApiPropertyOptional({ example: 1, description: 'Omit for a zero-length record' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(0xffff)
+  value?: number;
+}
 
 /**
  * Lets us exercise the whole pipeline - decode, registry, handler, payment,
@@ -33,6 +61,22 @@ export class SimulateMessageDto {
   @IsString()
   @MaxLength(2048)
   payloadHex?: string;
+
+  @ApiPropertyOptional({
+    type: [SimulateRecordDto],
+    description:
+      'Terminal-protocol records, encoded into a real frame (takes precedence over payloadHex/payload)',
+    example: [
+      { vid: 0x80, value: 500 },
+      { vid: 0x81, value: 1 },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => SimulateRecordDto)
+  records?: SimulateRecordDto[];
 }
 
 export class PublishCommandDto {
@@ -42,6 +86,9 @@ export class PublishCommandDto {
   deviceUid: string;
 
   @ApiProperty({ example: 1, description: 'Command/opcode byte' })
+  @IsInt()
+  @Min(0)
+  @Max(255)
   command: number;
 
   @ApiPropertyOptional({
@@ -49,6 +96,7 @@ export class PublishCommandDto {
     example: [{ type: 'number16', value: 500 }],
   })
   @IsOptional()
+  @IsArray()
   fields?: Array<{ type: string; value: string | number }>;
 }
 

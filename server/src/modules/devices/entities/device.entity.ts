@@ -86,6 +86,27 @@ export class Device extends BaseEntity {
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, unknown> | null;
 
+  /**
+   * Terminal-protocol config (VIDs 0x01-0x08) as last saved, keyed by the
+   * catalogue key. Null = spec defaults. See mqtt/protocol/terminal-protocol.ts.
+   */
+  @ApiPropertyOptional({ description: 'Saved terminal config; null means spec defaults' })
+  @Column({ type: 'jsonb', nullable: true })
+  config: Record<string, number> | null;
+
+  /** When the broker last accepted this device's config. Not a device ack: the protocol has none. */
+  @ApiPropertyOptional()
+  @Column({ name: 'config_sent_at', type: 'timestamptz', nullable: true })
+  configSentAt: Date | null;
+
+  /**
+   * What the terminal last reported about itself: payment status
+   * (idle/busy) and its last operation. Merged key by key, never replaced.
+   */
+  @ApiPropertyOptional({ description: 'Last reported terminal status and operation' })
+  @Column({ name: 'terminal_state', type: 'jsonb', nullable: true })
+  terminalState: Record<string, unknown> | null;
+
   @ApiProperty()
   @Column({ name: 'company_id', type: 'uuid' })
   @Index()

@@ -199,6 +199,32 @@ export class DevicesService {
     await this.devices.update({ id: deviceId }, { lastSeenAt: seenAt });
   }
 
+  async saveConfig(deviceId: string, config: Record<string, number>): Promise<void> {
+    await this.devices.update({ id: deviceId }, { config });
+  }
+
+  async markConfigSent(deviceId: string, sentAt = new Date()): Promise<void> {
+    await this.devices.update({ id: deviceId }, { configSentAt: sentAt });
+  }
+
+  /**
+   * Merge into `terminal_state` in one statement. A status frame and an
+   * operation frame from the same terminal can land together; a
+   * read-modify-write would let one erase the other.
+   */
+  async patchTerminalState(deviceId: string, patch: Record<string, unknown>): Promise<void> {
+    await this.devices
+      .createQueryBuilder()
+      .update(Device)
+      .set({
+        terminalState: () =>
+          `COALESCE(terminal_state, CAST('{}' AS jsonb)) || CAST(:patch AS jsonb)`,
+      })
+      .setParameter('patch', JSON.stringify(patch))
+      .where('id = :id', { id: deviceId })
+      .execute();
+  }
+
   private async assertSiteBelongsToCompany(siteId: string, companyId: string): Promise<void> {
     const site = await this.sites.findById(siteId);
     if (site.companyId !== companyId) {

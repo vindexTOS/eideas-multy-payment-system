@@ -31,6 +31,26 @@ export interface DecodedFrame {
   hex: string;
   /** False when the buffer was too short to be a framed message. */
   framed: boolean;
+  /**
+   * The VID records after the timestamp, when the frame is a well-formed
+   * terminal-protocol frame (see protocol/terminal-protocol.ts). Null for
+   * JSON and for anything that does not chain into records exactly.
+   */
+  records: VidRecord[] | null;
+  /** Why a frame that looked like VID records was refused, for the audit log. */
+  protocolError: string | null;
+}
+
+/** One `[VID][len][value]` record of a terminal-protocol frame. */
+export interface VidRecord {
+  vid: number;
+  /** Catalogue key ('payment', 'transactionAmount', ...), null for a VID the catalogue lacks. */
+  key: string | null;
+  length: number;
+  /** Unsigned integer value; null for a zero-length record or an unknown VID. */
+  value: number | null;
+  /** Value bytes as hex. */
+  hex: string;
 }
 
 export interface MqttInboundMessage {
@@ -47,6 +67,12 @@ export interface MqttInboundMessage {
 export interface DeviceEventHandler {
   /** Event segment this handler claims, or '*' for a fallback. */
   readonly event: string;
+  /**
+   * VIDs this handler claims in terminal-protocol frames. Those frames are
+   * routed by VID whatever topic they arrived on; `event` then only matters
+   * for JSON frames (the simulator).
+   */
+  readonly vids?: readonly number[];
   /** Short name used in logs and in the device_messages audit row. */
   readonly name: string;
   handle(message: MqttInboundMessage): Promise<void>;
