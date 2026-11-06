@@ -11,7 +11,7 @@ const { PaymentFrameParser } = require('../dist/modules/mqtt/payment-frame.parse
 
 const codec = new FrameCodec();
 
-/** `command=4`, 4-byte LE amount in minor units - the assumed layout. */
+/** `command=4`, 4-byte LE amount in minor units - the old lift-style shape. */
 const binaryFrame = (amountMinor) => {
   const buf = Buffer.alloc(10);
   buf.writeUInt32BE(1760000000, 0);
@@ -23,9 +23,7 @@ const binaryFrame = (amountMinor) => {
 
 const config = (overrides = {}) => ({
   getOrThrow: () => ({
-    paymentCommand: 4,
     amountDivisor: 100,
-    binaryPaymentsEnabled: false,
     ...overrides,
   }),
 });
@@ -98,15 +96,11 @@ describe('payment frame parsing', () => {
     assert.strictEqual(result.amount, 12.5);
   });
 
-  it('refuses to book an undocumented binary frame by default', () => {
+  it('leaves binary frames to the terminal-protocol path', () => {
+    // The guessed lift-style layout is gone; binary money only comes in as
+    // VID records (see terminal-protocol.test.js).
     const parser = new PaymentFrameParser(config());
     assert.strictEqual(parser.parse(codec.decode(binaryFrame(1250)), new Date()), null);
-  });
-
-  it('books a binary frame once the layout is confirmed', () => {
-    const parser = new PaymentFrameParser(config({ binaryPaymentsEnabled: true }));
-    const result = parser.parse(codec.decode(binaryFrame(1250)), new Date());
-    assert.strictEqual(result.amount, 12.5);
   });
 
   it('rejects zero and negative amounts', () => {

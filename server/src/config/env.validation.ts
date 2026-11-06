@@ -34,9 +34,7 @@ export const envValidationSchema = Joi.object({
   MQTT_QOS: Joi.number().valid(0, 1, 2).optional(),
   MQTT_ROOT_TOPIC: Joi.string().optional(),
   MQTT_LOG_RAW: Joi.string().optional(),
-  MQTT_PAYMENT_COMMAND: Joi.number().optional(),
   MQTT_AMOUNT_DIVISOR: Joi.number().optional(),
-  MQTT_BINARY_PAYMENTS: Joi.string().optional(),
 
   SEED_ADMIN_EMAIL: Joi.string().email().optional(),
   SEED_ADMIN_PASSWORD: Joi.string().optional(),

@@ -3,9 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { MqttClient, connect } from 'mqtt';
 import { randomUUID } from 'node:crypto';
 import { MqttConfig } from '../../config/configuration';
-import { FrameCodec, PayloadField } from './frame.codec';
+import { FrameCodec, OutboundRecord, PayloadField } from './frame.codec';
 import { MqttRouterService } from './mqtt-router.service';
-import { commandTopic, inboundTopicFilter } from './mqtt-topic.util';
+import { commandTopic, inboundTopicFilter, parseTopic } from './mqtt-topic.util';
 
 export interface MqttStatus {
   enabled: boolean;
@@ -36,6 +36,8 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   private subscribedTo: string | null = null;
   private reconnects = 0;
   private lastError: string | null = null;
+  /** Per-device tail of the dispatch chain; see the 'message' handler. */
+  private readonly lanes = new Map<string, Promise<void>>();
 
   constructor(
     config: ConfigService,
@@ -78,6 +80,20 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       commandTopic(this.config.rootTopic, deviceUid, 'general'),
       this.codec.encode(command, fields),
     );
+  }
+
+  /**
+   * Send terminal-protocol records (configs, commands) in one frame.
+   * Resolves once the broker has accepted it; the protocol has no device ack.
+   */
+  async publishRecords(
+    deviceUid: string,
+    records: OutboundRecord[],
+  ): Promise<{ topic: string; hex: string }> {
+    const topic = commandTopic(this.config.rootTopic, deviceUid, 'general');
+    const frame = this.codec.encodeRecords(records);
+    await this.publishRaw(topic, frame);
+    return { topic, hex: frame.toString('hex') };
   }
 
   publishRaw(topic: string, payload: Buffer | string): Promise<void> {
@@ -123,10 +139,20 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.client.on('message', (topic, payload) => {
-      // Fire and forget: the broker must not be blocked by our DB writes,
-      // and the router already logs every failure.
-      void this.router.dispatch(topic, payload).catch((error: Error) => {
-        this.logger.error(`Dispatch crashed for ${topic}: ${error.message}`);
+      // The broker must not be blocked by our DB writes, so dispatch is not
+      // awaited here. It is chained per device, though: a terminal's frames
+      // are applied in the order it sent them (busy then idle must not land
+      // as idle then busy), while different terminals still run in parallel.
+      const receivedAt = new Date();
+      const lane = parseTopic(topic).deviceUid;
+      const next = (this.lanes.get(lane) ?? Promise.resolve())
+        .then(() => this.router.dispatch(topic, payload, receivedAt))
+        .catch((error: Error) => {
+          this.logger.error(`Dispatch crashed for ${topic}: ${error.message}`);
+        });
+      this.lanes.set(lane, next);
+      void next.then(() => {
+        if (this.lanes.get(lane) === next) this.lanes.delete(lane);
       });
     });
 
