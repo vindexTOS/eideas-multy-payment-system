@@ -5,7 +5,7 @@
 #   cd emulator && docker compose up -d --build
 #
 # No .env needed to start: it then talks to the platform's default broker
-# (broker.hivemq.com, root Pay) and prints a generated super-admin password
+# (the Mosquitto on this machine, root Pay) and prints a generated super-admin password
 # once in `docker compose logs emulator`. Copy .env.example to .env to change
 # any of that.
 
