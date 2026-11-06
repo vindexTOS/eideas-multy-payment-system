@@ -71,8 +71,10 @@ cd ui && npm install && npm run dev              # UI on :5180, proxies /api
 1. **Create a device.** It connects and announces its status (`0x82` idle).
 2. **In the platform panel**, open *Unregistered devices* and register the
    `EMU-…` uid to a company.
-3. **Command it from the panel** and watch the frames arrive in the device's
-   live log:
+3. **Command it through the platform API** (the panel has no buttons for these
+   yet; use Swagger at `/api/docs`, `/api/devices/:id/config` and
+   `/api/devices/:id/commands/...`) and watch the frames arrive in the
+   device's live log:
    - change its terminal config, which shows up under *Config from the server*;
    - send a set-amount, which the terminal charges and answers;
    - run a reconciliation, which the terminal answers with `0xBB`.
