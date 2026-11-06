@@ -14,7 +14,8 @@ eideas-multy-payment-system/
 ├─ docker-compose.yml      one command for the whole platform
 ├─ .env                    compose + server config (copy of .env.example)
 ├─ server/                 NestJS API, MQTT listener, earnings engine
-└─ client/                 React admin panel
+├─ client/                 React admin panel
+└─ emulator/               virtual terminals for testing (a separate app; see emulator/README.md)
 ```
 
 ## Quick start
@@ -296,6 +297,10 @@ Call it once for an unknown id to make it appear under **Unregistered
 devices**, register it in the UI, then call it again to see the money land on
 the device's charts. `GET /api/mqtt/status` shows the broker connection and
 dispatch counters; `GET /api/mqtt/messages` is the raw frame log.
+
+For a terminal that talks over a real broker, and receives config and
+commands back, use the [terminal emulator](emulator/README.md). It runs on its
+own and is not part of this compose file.
 
 ## API map
 
