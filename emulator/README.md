@@ -51,12 +51,13 @@ own volume, so it survives restarts and rebuilds. Lost it? Set
 `docker compose down -v` to start over (this also deletes the virtual
 terminals).
 
-With no `.env` it talks to the platform's default broker
-(`broker.hivemq.com`, root `Pay`). To point it elsewhere, choose your own
-password, or change the port, `cp .env.example .env`, edit, and run
-`docker compose up -d` again. The broker and root must be the same as the
-listener's. A broker on your own machine is
-`MQTT_URL=mqtt://host.docker.internal` from inside the container.
+With no `.env` it talks to the platform's default broker: the Mosquitto on
+the same machine (`mqtt://host.docker.internal`, root `Pay`). That is the
+right default when it runs on the server next to the platform. To point it
+elsewhere (running it on your laptop means `MQTT_URL=mqtt://<server>`),
+choose your own password, or change the port, `cp .env.example .env`, edit,
+and run `docker compose up -d` again. The broker and root must be the same
+as the listener's.
 
 ### Local development
 

@@ -23,13 +23,14 @@ RUN npm run build && npm prune --omit=dev
 # Node 24: node:sqlite is built in, so there is no native module to compile.
 FROM node:24-alpine AS runtime
 WORKDIR /app
-# MQTT_URL / MQTT_ROOT_TOPIC default to the platform's own defaults, so the
-# container works with no .env at all; an env file overrides them.
+# MQTT_URL / MQTT_ROOT_TOPIC default to the platform's own defaults (the
+# Mosquitto on this machine), so the container works with no .env at all on
+# the same server as the platform; an env file overrides them.
 ENV NODE_ENV=production \
     EMULATOR_PORT=8095 \
     EMULATOR_DB_PATH=/app/data/emulator.db \
     EMULATOR_PUBLIC_DIR=/app/public \
-    MQTT_URL=mqtt://broker.hivemq.com \
+    MQTT_URL=mqtt://host.docker.internal \
     MQTT_ROOT_TOPIC=Pay
 
 RUN apk add --no-cache dumb-init curl \
