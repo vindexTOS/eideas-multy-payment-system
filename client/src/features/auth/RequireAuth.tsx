@@ -1,6 +1,7 @@
 import { Spin } from "antd";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import type { UserRole } from "@/types/api";
+import { homePathFor } from "./roleHome";
 import { useAuth } from "./useAuth";
 
 /** Route guard. `roles` empty = any signed-in user. */
@@ -18,7 +19,7 @@ export const RequireAuth = ({ roles = [] }: { roles?: UserRole[] }) => {
   if (!user)
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (roles.length && !roles.includes(user.role))
-    return <Navigate to="/" replace />;
+    return <Navigate to={homePathFor(user)} replace />;
 
   return <Outlet />;
 };

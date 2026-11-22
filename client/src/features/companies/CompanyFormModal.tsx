@@ -31,10 +31,13 @@ export const CompanyFormModal = ({
   }, [open, company, form]);
 
   const mutation = useMutation({
-    mutationFn: (values: CompanyPayload) =>
-      company
-        ? companiesApi.update(company.id, values)
-        : companiesApi.create(values),
+    mutationFn: ({ password, ...values }: CompanyPayload) => {
+      // An emptied field comes back as "": on edit that means "keep it".
+      const withPassword = password ? { ...values, password } : values;
+      return company
+        ? companiesApi.update(company.id, withPassword)
+        : companiesApi.create(withPassword);
+    },
     onSuccess: async () => {
       message.success(
         company ? t("companies.updated") : t("companies.created"),
@@ -89,6 +92,7 @@ export const CompanyFormModal = ({
         <Form.Item
           name="email"
           label={t("companies.email")}
+          extra={t("companies.emailIsLogin")}
           rules={[
             {
               required: true,
@@ -97,7 +101,27 @@ export const CompanyFormModal = ({
             },
           ]}
         >
-          <Input placeholder="office@cleancar.ge" />
+          <Input placeholder="office@cleancar.ge" autoComplete="off" />
+        </Form.Item>
+        <Form.Item
+          name="password"
+          label={
+            company ? t("companies.newPassword") : t("companies.password")
+          }
+          rules={[
+            {
+              required: !company,
+              min: 8,
+              max: 72,
+              message: t("users.passwordHint"),
+            },
+          ]}
+        >
+          {/* new-password: the browser must not autofill the admin's own one. */}
+          <Input.Password
+            placeholder={t("users.passwordHint")}
+            autoComplete="new-password"
+          />
         </Form.Item>
         <Form.Item
           name="phone"

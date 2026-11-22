@@ -1,6 +1,16 @@
 /** Mirrors the server DTOs. Kept hand-written and small on purpose. */
 
-export type UserRole = "admin" | "company" | "manager";
+/** Same values as the server's `UserRole` enum - never rename a value. */
+export enum UserRole {
+  /** Eideas staff: every company. */
+  ADMIN = "admin",
+  /** A company's own login, created together with the company. */
+  COMPANY = "company",
+  /** Hired by a company, sees only the devices assigned to them. */
+  MANAGER = "manager",
+}
+
+export const ALL_ROLES = Object.values(UserRole);
 export type DeviceType =
   "car_wash" | "barrier" | "parking" | "vacuum" | "other";
 export type DeviceStatus = "active" | "inactive" | "blocked";

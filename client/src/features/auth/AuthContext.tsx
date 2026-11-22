@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { tokenStore } from "@/lib/tokens";
-import type { AuthProfile, UserRole } from "@/types/api";
+import { UserRole, type AuthProfile } from "@/types/api";
 import { authApi } from "./api";
 
 interface AuthContextValue {
@@ -18,7 +18,8 @@ interface AuthContextValue {
   isCompany: boolean;
   isManager: boolean;
   can: (...roles: UserRole[]) => boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Resolves with the signed-in profile, so the caller can route by role. */
+  login: (email: string, password: string) => Promise<AuthProfile>;
   logout: () => void;
 }
 
@@ -60,15 +61,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const response = await authApi.login(email, password);
     tokenStore.set(response.accessToken, response.refreshToken);
     setUser(response.user);
+    return response.user;
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
-      isAdmin: user?.role === "admin",
-      isCompany: user?.role === "company",
-      isManager: user?.role === "manager",
+      isAdmin: user?.role === UserRole.ADMIN,
+      isCompany: user?.role === UserRole.COMPANY,
+      isManager: user?.role === UserRole.MANAGER,
       can: (...roles: UserRole[]) => !!user && roles.includes(user.role),
       login,
       logout,

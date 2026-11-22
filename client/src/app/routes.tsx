@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireAuth } from "@/features/auth/RequireAuth";
+import { RoleHomeRedirect } from "@/features/auth/RoleHomeRedirect";
 import { CompaniesPage } from "@/features/companies/CompaniesPage";
 import { CompanyDetailPage } from "@/features/companies/CompanyDetailPage";
 import { DeviceDetailPage } from "@/features/devices/DeviceDetailPage";
@@ -11,6 +12,7 @@ import { PaymentsPage } from "@/features/payments/PaymentsPage";
 import { UnregisteredDevicesPage } from "@/features/registry/UnregisteredDevicesPage";
 import { SiteDetailPage } from "@/features/sites/SiteDetailPage";
 import { UsersPage } from "@/features/users/UsersPage";
+import { UserRole } from "@/types/api";
 
 /**
  * Drill-down mirrors the client's description:
@@ -22,7 +24,8 @@ export const AppRoutes = () => (
 
     <Route element={<RequireAuth />}>
       <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/companies" replace />} />
+        {/* Each role has its own landing page - see roleHome.ts. */}
+        <Route index element={<RoleHomeRedirect />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="companies/:companyId" element={<CompanyDetailPage />} />
         <Route
@@ -37,13 +40,13 @@ export const AppRoutes = () => (
       </Route>
     </Route>
 
-    <Route element={<RequireAuth roles={["admin", "company"]} />}>
+    <Route element={<RequireAuth roles={[UserRole.ADMIN, UserRole.COMPANY]} />}>
       <Route element={<AppLayout />}>
         <Route path="users" element={<UsersPage />} />
       </Route>
     </Route>
 
-    <Route element={<RequireAuth roles={["admin"]} />}>
+    <Route element={<RequireAuth roles={[UserRole.ADMIN]} />}>
       <Route element={<AppLayout />}>
         <Route
           path="unregistered-devices"

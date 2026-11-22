@@ -31,7 +31,7 @@ export class AuthService {
     const invalid = new UnauthorizedException('Invalid email or password');
     if (!user) throw invalid;
     if (!(await this.passwords.compare(dto.password, user.passwordHash))) throw invalid;
-    if (!user.isActive) throw new UnauthorizedException('Account is inactive');
+    this.users.assertCanSignIn(user);
 
     await this.users.markLogin(user.id);
     return this.issueTokens(user);
@@ -48,8 +48,9 @@ export class AuthService {
     }
     if (payload.type !== 'refresh') throw new UnauthorizedException('Not a refresh token');
 
-    const user = await this.users.findById(payload.sub);
-    if (!user.isActive) throw new UnauthorizedException('Account is inactive');
+    const user = await this.users.findById(payload.sub).catch(() => null);
+    if (!user) throw new UnauthorizedException('Account no longer exists');
+    this.users.assertCanSignIn(user);
     return this.issueTokens(user);
   }
 

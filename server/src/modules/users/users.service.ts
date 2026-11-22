@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -51,14 +52,30 @@ export class UsersService {
     return this.users
       .createQueryBuilder('user')
       .addSelect('user.passwordHash')
+      .leftJoinAndSelect('user.company', 'company')
       .where('LOWER(user.email) = LOWER(:email)', { email })
       .getOne();
   }
 
+  /** Loads the company too: sign-in checks and the auth profile need it. */
   async findById(id: string): Promise<User> {
-    const user = await this.users.findOne({ where: { id } });
+    const user = await this.users.findOne({ where: { id }, relations: { company: true } });
     if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;
+  }
+
+  /**
+   * One rule for login, refresh and every request: the account must be
+   * active, and every non-admin must belong to a company that is active and
+   * not deleted. A soft-deleted company is not joined, so `company` is null.
+   * Expects `user.company` loaded (findById / findByEmailWithSecret do).
+   */
+  assertCanSignIn(user: User): void {
+    if (!user.isActive) throw new UnauthorizedException('Account is inactive');
+    if (user.role === UserRole.ADMIN) return;
+    if (!user.company || !user.company.isActive) {
+      throw new UnauthorizedException('Company account is inactive');
+    }
   }
 
   async list(

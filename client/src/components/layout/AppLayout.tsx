@@ -15,7 +15,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
 import { useLanguage } from "@/i18n/useLanguage";
 import type { Language } from "@/i18n";
-import type { UserRole } from "@/types/api";
+import { ALL_ROLES, UserRole } from "@/types/api";
 
 interface NavItem {
   key: string;
@@ -25,44 +25,42 @@ interface NavItem {
   roles: UserRole[];
 }
 
-const ALL: UserRole[] = ["admin", "company", "manager"];
-
 const NAV: NavItem[] = [
   {
     key: "/companies",
     icon: <BankOutlined />,
     labelKey: "nav.companies",
-    roles: ALL,
+    roles: ALL_ROLES,
   },
   {
     key: "/devices",
     icon: <DesktopOutlined />,
     labelKey: "nav.devices",
-    roles: ALL,
+    roles: ALL_ROLES,
   },
   {
     key: "/earnings",
     icon: <BarChartOutlined />,
     labelKey: "nav.earnings",
-    roles: ALL,
+    roles: ALL_ROLES,
   },
   {
     key: "/payments",
     icon: <CreditCardOutlined />,
     labelKey: "nav.payments",
-    roles: ALL,
+    roles: ALL_ROLES,
   },
   {
     key: "/unregistered-devices",
     icon: <ApiOutlined />,
     labelKey: "nav.unregistered",
-    roles: ["admin"],
+    roles: [UserRole.ADMIN],
   },
   {
     key: "/users",
     icon: <TeamOutlined />,
     labelKey: "nav.users",
-    roles: ["admin", "company"],
+    roles: [UserRole.ADMIN, UserRole.COMPANY],
   },
 ];
 
@@ -154,7 +152,7 @@ export const AppLayout = () => {
                 {
                   key: "role",
                   label: t("auth.signedInAs", {
-                    role: t(`users.roles.${user?.role ?? "manager"}`),
+                    role: t(`users.roles.${user?.role ?? UserRole.MANAGER}`),
                   }),
                   disabled: true,
                 },

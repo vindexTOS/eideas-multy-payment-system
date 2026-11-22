@@ -21,10 +21,22 @@ export class CreateCompanyDto {
   @Length(5, 32)
   identificationCode: string;
 
-  @ApiProperty({ example: 'office@cleancar.ge' })
+  @ApiProperty({
+    example: 'office@cleancar.ge',
+    description: 'Also the login of the company account created with the company',
+  })
   @IsEmail()
   @MaxLength(160)
   email: string;
+
+  @ApiProperty({
+    minLength: 8,
+    example: 'Str0ngPass!',
+    description: 'Password of the company login (role `company`, email = company email)',
+  })
+  @IsString()
+  @Length(8, 72)
+  password: string;
 
   @ApiProperty({ example: '+995555123456' })
   @IsString()

@@ -177,6 +177,26 @@ Scoping is enforced server-side in every query (`AccessScopeService` plus the
 per-module filters), not in the UI. Asking for another company's device id
 returns zeros or a 404, never someone else's money.
 
+### Logins
+
+Every account is a `users` row; its `role` is the `UserRole` enum (`admin`,
+`company`, `manager`), mirrored on the client as `UserRole` in
+`client/src/types/api.ts`.
+
+- **A company is also a login.** `POST /api/companies` takes a `password` and,
+  in the same transaction, creates a `company`-role user whose email is the
+  company email. Changing the company email on `PATCH` moves the login with it;
+  sending `password` resets it (or creates the login for a company that
+  predates this).
+- **Managers** are created by an admin or by their company, with their own
+  password, on the Users page.
+- **A deactivated or deleted company locks out all of its accounts** (owner and
+  managers) at login, refresh and on every request. Reactivating it restores
+  them; the users' own `isActive` flags are not touched.
+- **Landing page per role** (`client/src/features/auth/roleHome.ts`): admin →
+  `/companies`, company → `/companies/<own id>`, manager → `/devices`. Used
+  after sign-in, on `/`, and when a role opens a page it may not see.
+
 ## MQTT
 
 Topic layout (root is configurable via `MQTT_ROOT_TOPIC`, so staging and
@@ -308,7 +328,7 @@ own and is not part of this compose file.
 |---|---|---|
 | POST | `/api/auth/login`, `/api/auth/refresh` | public |
 | GET | `/api/auth/me` | any |
-| GET/POST/PATCH/DELETE | `/api/companies` | read: any · write: admin |
+| GET/POST/PATCH/DELETE | `/api/companies` (POST also creates the company login) | read: any · write: admin |
 | GET/POST/PATCH/DELETE | `/api/sites` | write: admin, company |
 | GET/POST/PATCH/DELETE | `/api/devices` | write: admin |
 | GET | `/api/devices/:id/earnings` | any (scoped) |

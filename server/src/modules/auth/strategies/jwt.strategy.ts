@@ -23,15 +23,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   /**
-   * The DB is re-checked on every request: a deactivated account, or one
-   * moved to another company, must lose access immediately rather than when
-   * its token happens to expire.
+   * The DB is re-checked on every request: a deactivated account (or company),
+   * or one moved to another company, must lose access immediately rather than
+   * when its token happens to expire.
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     if (payload.type !== 'access') throw new UnauthorizedException('Not an access token');
 
     const user = await this.users.findById(payload.sub).catch(() => null);
-    if (!user || !user.isActive) throw new UnauthorizedException('Account is inactive');
+    if (!user) throw new UnauthorizedException('Account is inactive');
+    // A deactivated or deleted company locks out its owner and managers too.
+    this.users.assertCanSignIn(user);
 
     return {
       id: user.id,

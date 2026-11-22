@@ -1,11 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, Repository } from 'typeorm';
 import { PaginatedResult } from '../../shared/dto/paginated-result.dto';
 import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto';
+import { UserRole } from '../../shared/enums/user-role.enum';
 import { AuthenticatedUser } from '../../shared/interfaces/authenticated-user.interface';
 import { AccessScopeService } from '../../shared/services/access-scope.service';
+import { PasswordService } from '../../shared/services/password.service';
 import { EarningsService } from '../earnings/earnings.service';
+import { User } from '../users/entities/user.entity';
 import { CompanySummaryDto } from './dto/company-summary.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -24,6 +27,8 @@ export class CompaniesService {
     private readonly companies: Repository<Company>,
     private readonly earnings: EarningsService,
     private readonly accessScope: AccessScopeService,
+    private readonly passwords: PasswordService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -101,15 +106,89 @@ export class CompaniesService {
     }
   }
 
+  /**
+   * A company is also an account: creating one creates its login (role
+   * `company`, email = company email) in the same transaction, so there is
+   * never a company nobody can sign in to.
+   */
   async create(dto: CreateCompanyDto): Promise<Company> {
-    const company = this.companies.create(dto);
-    return this.companies.save(company);
+    const { password, ...fields } = dto;
+    const passwordHash = await this.passwords.hash(password);
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.assertLoginEmailFree(manager, fields.email);
+      const company = await manager.save(manager.create(Company, fields));
+      await this.createLogin(manager, company, passwordHash);
+      return company;
+    });
   }
 
+  /**
+   * The company login follows the company email. `password` resets it; on a
+   * company created before logins existed it creates the login instead.
+   */
   async update(id: string, dto: UpdateCompanyDto): Promise<Company> {
+    const { password, ...fields } = dto;
     const company = await this.findById(id);
-    Object.assign(company, dto);
-    return this.companies.save(company);
+    const previousEmail = company.email;
+    const passwordHash = password ? await this.passwords.hash(password) : undefined;
+
+    return this.dataSource.transaction(async (manager) => {
+      Object.assign(company, fields);
+      const saved = await manager.save(company);
+
+      const login = await manager.findOne(User, {
+        where: {
+          companyId: saved.id,
+          role: UserRole.COMPANY,
+          email: previousEmail.toLowerCase(),
+        },
+      });
+
+      if (!login) {
+        if (passwordHash) {
+          await this.assertLoginEmailFree(manager, saved.email);
+          await this.createLogin(manager, saved, passwordHash);
+        }
+        return saved;
+      }
+
+      const email = saved.email.toLowerCase();
+      if (login.email !== email) {
+        await this.assertLoginEmailFree(manager, email);
+        login.email = email;
+      }
+      if (passwordHash) login.passwordHash = passwordHash;
+      await manager.save(login);
+      return saved;
+    });
+  }
+
+  private async createLogin(
+    manager: EntityManager,
+    company: Company,
+    passwordHash: string,
+  ): Promise<User> {
+    return manager.save(
+      manager.create(User, {
+        email: company.email.toLowerCase(),
+        passwordHash,
+        fullName: company.name,
+        phone: company.phone,
+        role: UserRole.COMPANY,
+        companyId: company.id,
+        isActive: true,
+      }),
+    );
+  }
+
+  /** Soft-deleted users still hold their email (the column is unique). */
+  private async assertLoginEmailFree(manager: EntityManager, email: string): Promise<void> {
+    const taken = await manager.exists(User, {
+      where: { email: email.toLowerCase() },
+      withDeleted: true,
+    });
+    if (taken) throw new ConflictException(`A user with email ${email} already exists`);
   }
 
   /**

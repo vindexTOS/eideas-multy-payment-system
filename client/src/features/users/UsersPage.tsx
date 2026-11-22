@@ -7,14 +7,14 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { dateTime } from "@/lib/format";
 import { errorMessage } from "@/lib/http";
 import { queryKeys } from "@/lib/queryKeys";
-import type { AppUser, UserRole } from "@/types/api";
+import { UserRole, type AppUser } from "@/types/api";
 import { usersApi } from "./api";
 import { UserFormModal } from "./UserFormModal";
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  admin: "purple",
-  company: "blue",
-  manager: "cyan",
+  [UserRole.ADMIN]: "purple",
+  [UserRole.COMPANY]: "blue",
+  [UserRole.MANAGER]: "cyan",
 };
 
 export const UsersPage = () => {
@@ -59,7 +59,7 @@ export const UsersPage = () => {
       dataIndex: "deviceIds",
       align: "right" as const,
       render: (ids: string[], row: AppUser) =>
-        row.role === "manager" ? ids.length : t("common.dash"),
+        row.role === UserRole.MANAGER ? ids.length : t("common.dash"),
     },
     {
       title: t("users.lastLogin"),

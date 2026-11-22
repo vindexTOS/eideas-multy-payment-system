@@ -11,7 +11,7 @@ import { sitesApi } from "@/features/sites/api";
 import { SiteFormModal } from "@/features/sites/SiteFormModal";
 import { money } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
-import type { SiteSummary } from "@/types/api";
+import { UserRole, type SiteSummary } from "@/types/api";
 import { companiesApi } from "./api";
 
 /** Company -> its objects (addresses). Drill down continues on each object. */
@@ -86,7 +86,7 @@ export const CompanyDetailPage = () => {
           { title: company.data?.name ?? "..." },
         ]}
         actions={
-          can("admin", "company") && (
+          can(UserRole.ADMIN, UserRole.COMPANY) && (
             <Button
               type="primary"
               icon={<PlusOutlined />}

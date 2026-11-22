@@ -7,7 +7,7 @@ import { companiesApi } from "@/features/companies/api";
 import { devicesApi } from "@/features/devices/api";
 import { errorMessage } from "@/lib/http";
 import { queryKeys } from "@/lib/queryKeys";
-import type { AppUser, UserRole } from "@/types/api";
+import { UserRole, type AppUser } from "@/types/api";
 import { usersApi, type UserPayload } from "./api";
 
 /**
@@ -42,7 +42,7 @@ export const UserFormModal = ({
   const devices = useQuery({
     queryKey: queryKeys.devices({ companyId, limit: 200 }),
     queryFn: () => devicesApi.list({ companyId, limit: 200 }),
-    enabled: open && role === "manager" && !!companyId,
+    enabled: open && role === UserRole.MANAGER && !!companyId,
   });
 
   useEffect(() => {
@@ -104,7 +104,7 @@ export const UserFormModal = ({
         form={form}
         layout="vertical"
         onFinish={(values) => mutation.mutate(values)}
-        initialValues={{ role: "manager", isActive: true }}
+        initialValues={{ role: UserRole.MANAGER, isActive: true }}
       >
         <Form.Item
           name="fullName"
@@ -133,7 +133,10 @@ export const UserFormModal = ({
             { required: !user, min: 8, message: t("users.passwordHint") },
           ]}
         >
-          <Input.Password placeholder={t("users.passwordHint")} />
+          <Input.Password
+            placeholder={t("users.passwordHint")}
+            autoComplete="new-password"
+          />
         </Form.Item>
         <Form.Item name="phone" label={t("users.phone")}>
           <Input />
@@ -150,19 +153,19 @@ export const UserFormModal = ({
                 ? [
                     {
                       label: t("users.roles.admin"),
-                      value: "admin" as UserRole,
+                      value: UserRole.ADMIN,
                     },
                     {
                       label: t("users.roles.company"),
-                      value: "company" as UserRole,
+                      value: UserRole.COMPANY,
                     },
                   ]
                 : []),
-              { label: t("users.roles.manager"), value: "manager" as UserRole },
+              { label: t("users.roles.manager"), value: UserRole.MANAGER },
             ]}
           />
         </Form.Item>
-        {isAdmin && role !== "admin" && (
+        {isAdmin && role !== UserRole.ADMIN && (
           <Form.Item
             name="companyId"
             label={t("users.company")}
@@ -180,7 +183,7 @@ export const UserFormModal = ({
             />
           </Form.Item>
         )}
-        {role === "manager" && (
+        {role === UserRole.MANAGER && (
           <Form.Item
             name="deviceIds"
             label={t("users.managerDevices")}

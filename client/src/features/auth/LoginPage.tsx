@@ -15,6 +15,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import type { Language } from "@/i18n";
 import { useLanguage } from "@/i18n/useLanguage";
 import { errorMessage } from "@/lib/http";
+import { homePathFor } from "./roleHome";
 import { useAuth } from "./useAuth";
 
 interface LoginForm {
@@ -31,15 +32,16 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // A deep link the user was bounced from wins; otherwise the role's own page.
   if (user && !loading)
-    return <Navigate to={location.state?.from ?? "/"} replace />;
+    return <Navigate to={location.state?.from ?? homePathFor(user)} replace />;
 
   const onFinish = async (values: LoginForm) => {
     setSubmitting(true);
     setError(null);
     try {
-      await login(values.email, values.password);
-      navigate(location.state?.from ?? "/", { replace: true });
+      const profile = await login(values.email, values.password);
+      navigate(location.state?.from ?? homePathFor(profile), { replace: true });
     } catch (err) {
       setError(errorMessage(err, t("auth.failed")));
     } finally {

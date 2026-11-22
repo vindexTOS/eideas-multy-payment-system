@@ -10,6 +10,11 @@ export interface CompanyPayload {
   bankAccount: string;
   comment?: string;
   isActive?: boolean;
+  /**
+   * Company login password (the login email is `email`). Required on create;
+   * on update it resets the password, or creates the login if there is none.
+   */
+  password?: string;
 }
 
 export interface ListParams {
