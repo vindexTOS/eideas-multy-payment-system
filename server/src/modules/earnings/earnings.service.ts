@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaymentStatus } from '../../shared/enums/payment-status.enum';
 import { round2, toAmount } from '../../shared/utils/money.util';
-import { MonthRange, buildMonthRange } from '../../shared/utils/month-range.util';
+import {
+  BUSINESS_TIME_ZONE,
+  MonthRange,
+  buildMonthRange,
+} from '../../shared/utils/month-range.util';
 import { Payment } from '../payments/entities/payment.entity';
 import { EarningsMonthDto, EarningsSeriesDto, EarningsTotalsDto } from './dto/earnings-series.dto';
 
@@ -35,8 +39,8 @@ interface RawGroupRow {
  * only owns the Payment repository) so every other module can import it
  * without creating a cycle.
  *
- * A month runs from the 1st 00:00:00.000 UTC to the last day 23:59:59.999
- * UTC, inclusive - see buildMonthRange.
+ * A month runs from the 1st 00:00:00.000 to the last day 23:59:59.999,
+ * Tbilisi time, inclusive - see buildMonthRange and BUSINESS_TIME_ZONE.
  */
 @Injectable()
 export class EarningsService {
@@ -182,15 +186,16 @@ export class EarningsService {
   }
 
   /**
-   * The month key is built in SQL as `YYYY-MM` text. Returned as a date it
-   * came back as a timestamp without zone, which the pg driver reads in the
-   * server's local zone: at UTC+4 (Tbilisi) "2026-11-01 00:00" became
-   * 31 Oct 20:00 UTC, so every month's money showed in the previous month.
+   * Payments are bucketed by their Tbilisi calendar month, the same months
+   * buildMonthRange filters by. The key is built in SQL as `YYYY-MM` text:
+   * returned as a date it came back as a timestamp without zone, which the
+   * pg driver reads in the server's own zone and shifted months by one.
+   * BUSINESS_TIME_ZONE is a code constant, so inlining it is safe.
    */
   private rawMonthlyRows(scope: EarningsScope, window: MonthRange): Promise<RawMonthRow[]> {
     return this.baseQuery(scope, window)
       .select(
-        "to_char(date_trunc('month', payment.paid_at AT TIME ZONE 'UTC'), 'YYYY-MM')",
+        `to_char(date_trunc('month', payment.paid_at AT TIME ZONE '${BUSINESS_TIME_ZONE}'), 'YYYY-MM')`,
         'month',
       )
       .addSelect('COALESCE(SUM(payment.amount), 0)', 'total')

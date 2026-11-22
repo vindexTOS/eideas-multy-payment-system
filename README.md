@@ -146,10 +146,13 @@ net        = amount − commission
 - Implemented once, in `shared/services/commission.service.ts`.
 - Computed **per payment** and frozen onto the row at insert time — editing a
   tariff never rewrites history.
-- A month runs from the **1st at 00:00:00.000 UTC to the last day at
-  23:59:59.999 UTC**, inclusive (`shared/utils/month-range.util.ts`). Every
-  chart month is present even when it has no payments, so a quiet month
-  renders as a zero column instead of disappearing.
+- A month runs from the **1st at 00:00:00.000 to the last day at
+  23:59:59.999, Tbilisi time** (`Asia/Tbilisi`, UTC+4), inclusive
+  (`BUSINESS_TIME_ZONE` in `shared/utils/month-range.util.ts`, used by both
+  the window filter and the SQL month bucket). A payment at 01:30 on the 1st
+  in Tbilisi belongs to the new month, whatever zone the server or database
+  runs in. Every chart month is present even when it has no payments, so a
+  quiet month renders as a zero column instead of disappearing.
 
 Two inbound money paths, one `payments` table:
 
