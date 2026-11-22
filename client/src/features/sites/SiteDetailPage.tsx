@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { PageHeader } from "@/components/common/PageHeader";
 import { QueryBoundary } from "@/components/common/QueryBoundary";
+import { homePathFor } from "@/features/auth/roleHome";
 import { useAuth } from "@/features/auth/useAuth";
 import { DeviceFormModal } from "@/features/devices/DeviceFormModal";
 import { DevicesTable } from "@/features/devices/DevicesTable";
@@ -18,7 +19,7 @@ import { sitesApi } from "./api";
 export const SiteDetailPage = () => {
   const { companyId, siteId = "" } = useParams();
   const { t } = useTranslation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isCompany, user } = useAuth();
   const [creating, setCreating] = useState(false);
 
   const site = useQuery({
@@ -33,13 +34,19 @@ export const SiteDetailPage = () => {
     enabled: !!siteId,
   });
 
-  const crumbs = [
-    { title: t("companies.title"), to: "/companies" },
-    ...(companyId
-      ? [{ title: t("companies.one"), to: `/companies/${companyId}` }]
-      : []),
-    { title: site.data?.name ?? "..." },
-  ];
+  const crumbs =
+    isCompany && user
+      ? [
+          { title: t("nav.myCompany"), to: homePathFor(user) },
+          { title: site.data?.name ?? "..." },
+        ]
+      : [
+          { title: t("companies.title"), to: "/companies" },
+          ...(companyId
+            ? [{ title: t("companies.one"), to: `/companies/${companyId}` }]
+            : []),
+          { title: site.data?.name ?? "..." },
+        ];
 
   return (
     <>

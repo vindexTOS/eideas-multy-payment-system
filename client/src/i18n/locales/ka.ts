@@ -45,6 +45,7 @@ export const ka: Resources = {
   },
   nav: {
     companies: "კომპანიები",
+    myCompany: "ჩემი კომპანია",
     devices: "დევაისები",
     earnings: "გამომუშავება",
     payments: "გადახდები",

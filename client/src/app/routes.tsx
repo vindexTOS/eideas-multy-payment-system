@@ -40,14 +40,10 @@ export const AppRoutes = () => (
       </Route>
     </Route>
 
-    <Route element={<RequireAuth roles={[UserRole.ADMIN, UserRole.COMPANY]} />}>
-      <Route element={<AppLayout />}>
-        <Route path="users" element={<UsersPage />} />
-      </Route>
-    </Route>
-
+    {/* Admin only. Companies are view-only for now (brief). */}
     <Route element={<RequireAuth roles={[UserRole.ADMIN]} />}>
       <Route element={<AppLayout />}>
+        <Route path="users" element={<UsersPage />} />
         <Route
           path="unregistered-devices"
           element={<UnregisteredDevicesPage />}

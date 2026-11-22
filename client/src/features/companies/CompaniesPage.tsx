@@ -13,8 +13,9 @@ import {
 } from "antd";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/common/PageHeader";
+import { homePathFor } from "@/features/auth/roleHome";
 import { useAuth } from "@/features/auth/useAuth";
 import { money } from "@/lib/format";
 import { errorMessage } from "@/lib/http";
@@ -25,7 +26,7 @@ import { CompanyFormModal } from "./CompanyFormModal";
 
 /** Admin landing page: every company with its objects, devices and money. */
 export const CompaniesPage = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isCompany, user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -126,6 +127,9 @@ export const CompaniesPage = () => {
     },
     ...(isAdmin ? [actionColumn] : []),
   ];
+
+  // A company has no list of companies - its panel is its own company page.
+  if (isCompany && user) return <Navigate to={homePathFor(user)} replace />;
 
   return (
     <>

@@ -12,6 +12,7 @@ import { Avatar, Button, Dropdown, Layout, Menu, Tag, Typography } from "antd";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { homePathFor } from "@/features/auth/roleHome";
 import { useAuth } from "@/features/auth/useAuth";
 import { useLanguage } from "@/i18n/useLanguage";
 import type { Language } from "@/i18n";
@@ -60,7 +61,7 @@ const NAV: NavItem[] = [
     key: "/users",
     icon: <TeamOutlined />,
     labelKey: "nav.users",
-    roles: [UserRole.ADMIN, UserRole.COMPANY],
+    roles: [UserRole.ADMIN],
   },
 ];
 
@@ -71,19 +72,29 @@ export const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const items = useMemo(
+  // A company has no list of companies: its "Companies" entry is its own
+  // panel (company data + objects).
+  const nav = useMemo(
     () =>
       NAV.filter((item) => !user || item.roles.includes(user.role)).map(
-        ({ key, icon, labelKey }) => ({ key, icon, label: t(labelKey) }),
+        (item) =>
+          user?.role === UserRole.COMPANY && item.key === "/companies"
+            ? { ...item, key: homePathFor(user), labelKey: "nav.myCompany" }
+            : item,
       ),
-    [user, t],
+    [user],
+  );
+
+  const items = useMemo(
+    () => nav.map(({ key, icon, labelKey }) => ({ key, icon, label: t(labelKey) })),
+    [nav, t],
   );
 
   // Highlight the section, not the exact url: /companies/:id/sites/:id still
   // belongs to Companies.
-  const selected = NAV.map((item) => item.key).filter((key) =>
-    location.pathname.startsWith(key),
-  );
+  const selected = nav
+    .map((item) => item.key)
+    .filter((key) => location.pathname.startsWith(key));
 
   return (
     <Layout style={{ minHeight: "100vh" }}>

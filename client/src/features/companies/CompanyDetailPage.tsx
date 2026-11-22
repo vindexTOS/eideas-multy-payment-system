@@ -11,7 +11,7 @@ import { sitesApi } from "@/features/sites/api";
 import { SiteFormModal } from "@/features/sites/SiteFormModal";
 import { money } from "@/lib/format";
 import { queryKeys } from "@/lib/queryKeys";
-import { UserRole, type SiteSummary } from "@/types/api";
+import type { SiteSummary } from "@/types/api";
 import { companiesApi } from "./api";
 
 /** Company -> its objects (addresses). Drill down continues on each object. */
@@ -19,7 +19,7 @@ export const CompanyDetailPage = () => {
   const { companyId = "" } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAdmin, can } = useAuth();
+  const { isAdmin, isCompany } = useAuth();
   const [creating, setCreating] = useState(false);
 
   const company = useQuery({
@@ -81,12 +81,18 @@ export const CompanyDetailPage = () => {
       <PageHeader
         title={company.data?.name ?? t("companies.one")}
         subtitle={company.data?.identificationCode}
-        crumbs={[
-          { title: t("companies.title"), to: "/companies" },
-          { title: company.data?.name ?? "..." },
-        ]}
+        crumbs={
+          // A company's panel is its top level: there is no list above it.
+          isCompany
+            ? undefined
+            : [
+                { title: t("companies.title"), to: "/companies" },
+                { title: company.data?.name ?? "..." },
+              ]
+        }
         actions={
-          can(UserRole.ADMIN, UserRole.COMPANY) && (
+          // Companies are view-only for now (brief): objects are added by an admin.
+          isAdmin && (
             <Button
               type="primary"
               icon={<PlusOutlined />}

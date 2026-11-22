@@ -38,6 +38,7 @@ export const en = {
   },
   nav: {
     companies: "Companies",
+    myCompany: "My company",
     devices: "Devices",
     earnings: "Earnings",
     payments: "Payments",

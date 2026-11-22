@@ -42,10 +42,11 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  @Auth(UserRole.ADMIN)
   @ApiOperation({
     summary: 'List accounts',
-    description: 'A company sees only its own staff; an admin sees everyone.',
+    description:
+      'Admin only. Companies are view-only for now, so their managers are created by an admin.',
   })
   list(
     @CurrentUser() user: AuthenticatedUser,
@@ -55,7 +56,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  @Auth(UserRole.ADMIN)
   findOne(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -64,11 +65,11 @@ export class UsersController {
   }
 
   @Post()
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  @Auth(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Create an account',
     description:
-      'A company can create manager accounts for its own devices. Only an admin can create admin or company accounts.',
+      'Admin only. A company login is created with its company; managers are created here for a company and given specific devices.',
   })
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -78,7 +79,7 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  @Auth(UserRole.ADMIN)
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -88,7 +89,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  @Auth(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(
     @CurrentUser() user: AuthenticatedUser,

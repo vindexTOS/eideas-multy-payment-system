@@ -58,13 +58,14 @@ export class SitesController {
   }
 
   @Post()
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  // Companies are view-only for now (brief): objects are managed by an admin.
+  @Auth(UserRole.ADMIN)
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSiteDto): Promise<Site> {
     return this.sites.create(user, dto);
   }
 
   @Patch(':id')
-  @Auth(UserRole.ADMIN, UserRole.COMPANY)
+  @Auth(UserRole.ADMIN)
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,

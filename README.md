@@ -167,10 +167,10 @@ Reversal flips a payment's status instead of deleting it: earnings only sum
 | | Admin | Company | Manager |
 |---|---|---|---|
 | Companies | full CRUD | own, read-only | own, read-only |
-| Objects (sites) | full CRUD | create/edit own | only those holding their devices |
+| Objects (sites) | full CRUD | own, read-only | only those holding their devices |
 | Devices | full CRUD | read own | only assigned ones |
 | Earnings / payments | everything | own company | assigned devices |
-| Users | all | own managers | — |
+| Users | all | — | — |
 | Unregistered devices, MQTT | yes | — | — |
 
 Scoping is enforced server-side in every query (`AccessScopeService` plus the
@@ -188,8 +188,8 @@ Every account is a `users` row; its `role` is the `UserRole` enum (`admin`,
   company email. Changing the company email on `PATCH` moves the login with it;
   sending `password` resets it (or creates the login for a company that
   predates this).
-- **Managers** are created by an admin or by their company, with their own
-  password, on the Users page.
+- **Managers** are created by an admin for a company, with their own password
+  and device list, on the Users page.
 - **A deactivated or deleted company locks out all of its accounts** (owner and
   managers) at login, refresh and on every request. Reactivating it restores
   them; the users' own `isActive` flags are not touched.
@@ -406,10 +406,13 @@ listed under [Terminal protocol](#terminal-protocol-vids)). Where a decision was
    just noise).
 8. **`deviceUid` and a device's company are immutable** after registration:
    either would corrupt the earnings history. Delete and re-register instead.
-9. **Company users have read-only access** to their objects and devices, per
-   the brief, except that they may create objects and manager accounts — that
-   is the one thing the brief asks for explicitly ("so a company can hire an
-   employee"). Everything else stays admin-only until the client says more.
+9. **Companies are view-only for now**, per the brief ("ჯერჯერობით მივცეთ
+   მხოლოდ ხედვის უფლება" — editing rights get decided later). A company sees
+   its panel (company data + objects) → an object's devices → a device's
+   money and commission charts, plus the earnings page with the three monthly
+   charts (gross, Eideas commission, company net). Objects and manager
+   accounts are created by an admin; the API refuses company writes (403),
+   not just the UI.
 
 ## Still to do
 
