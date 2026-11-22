@@ -44,7 +44,11 @@ export const SiteFormModal = ({
         : sitesApi.create({ ...values, companyId }),
     onSuccess: async () => {
       message.success(site ? t("sites.updated") : t("sites.created"));
-      await queryClient.invalidateQueries({ queryKey: ["sites"] });
+      // ["site"] too: the object page and the next Edit read the single object.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sites"] }),
+        queryClient.invalidateQueries({ queryKey: ["site"] }),
+      ]);
       onClose();
     },
     onError: (error) => message.error(errorMessage(error)),

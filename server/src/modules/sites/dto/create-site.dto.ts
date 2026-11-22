@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsLatitude,
@@ -9,6 +10,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { blankToNull } from '../../../shared/utils/blank-to-null.util';
 
 export class CreateSiteDto {
   @ApiProperty({ example: 'Saburtalo car wash' })
@@ -25,9 +27,10 @@ export class CreateSiteDto {
 
   @ApiPropertyOptional({ example: 'Tbilisi' })
   @IsOptional()
+  @Transform(blankToNull)
   @IsString()
   @MaxLength(120)
-  city?: string;
+  city?: string | null;
 
   @ApiPropertyOptional({ description: 'For the future map view' })
   @IsOptional()
@@ -41,9 +44,10 @@ export class CreateSiteDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(blankToNull)
   @IsString()
   @MaxLength(2000)
-  comment?: string;
+  comment?: string | null;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

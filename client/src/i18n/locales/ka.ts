@@ -94,6 +94,10 @@ export const ka: Resources = {
     searchPlaceholder: "დასახელება ან მისამართი",
     created: "ობიექტი დაემატა",
     updated: "ობიექტი განახლდა",
+    deleteConfirm: "წავშალოთ ეს ობიექტი?",
+    deleteHint:
+      "მასზე მიბმული დევაისები დარჩება, ობიექტის გარეშე. გადახდების ისტორია შენარჩუნდება.",
+    deleted: "ობიექტი წაიშალა",
   },
   devices: {
     title: "დევაისები",

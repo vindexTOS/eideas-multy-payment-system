@@ -152,6 +152,7 @@ export class DevicesService {
     if (await this.devices.countBy({ deviceUid: dto.deviceUid })) {
       throw new ConflictException(`Device uid ${dto.deviceUid} is already registered`);
     }
+    await this.assertNumberFree(dto.number);
     if (dto.siteId) await this.assertSiteBelongsToCompany(dto.siteId, companyId);
 
     const device = this.devices.create({
@@ -172,8 +173,15 @@ export class DevicesService {
   }
 
   async update(user: AuthenticatedUser, id: string, dto: UpdateDeviceDto): Promise<Device> {
-    const device = await this.findOneScoped(user, id);
+    // Access check (and 404) on the scoped read, but the write uses the plain
+    // row: with `site` loaded, save() writes that relation over a changed
+    // siteId, so moving a device to another object silently did nothing.
+    await this.findOneScoped(user, id);
+    const device = await this.findById(id);
     if (dto.siteId) await this.assertSiteBelongsToCompany(dto.siteId, device.companyId);
+    if (dto.number !== undefined && dto.number !== device.number) {
+      await this.assertNumberFree(dto.number);
+    }
 
     Object.assign(device, {
       ...dto,
@@ -185,7 +193,21 @@ export class DevicesService {
     });
     // Tariff edits only affect payments from here on; past rows keep the
     // commission they were charged.
-    return this.devices.save(device);
+    await this.devices.save(device);
+    return this.findOneScoped(user, id);
+  }
+
+  /**
+   * Terminal numbers are never duplicated (brief). Checked here so the admin
+   * reads which device holds it, instead of a bare unique-violation. A
+   * deleted terminal keeps its number: the column is unique across all rows.
+   */
+  private async assertNumberFree(number: string | null | undefined): Promise<void> {
+    if (!number) return;
+    const holder = await this.devices.findOne({ where: { number }, withDeleted: true });
+    if (!holder) return;
+    const who = holder.deletedAt ? `deleted device "${holder.name}"` : `device "${holder.name}"`;
+    throw new ConflictException(`Terminal number ${number} is already used by ${who}`);
   }
 
   async remove(id: string): Promise<void> {

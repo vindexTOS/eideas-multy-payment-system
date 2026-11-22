@@ -403,9 +403,14 @@ listed under [Terminal protocol](#terminal-protocol-vids)). Where a decision was
    and `latitude`/`longitude` columns are already there for the map view.
 7. **Deletes are soft** for companies, sites, devices and users — payment
    history must survive. Unregistered-device rows are hard-deleted (they are
-   just noise).
+   just noise). Deleting an object detaches its devices (`site_id = NULL`):
+   they keep their money and can be put on another object.
 8. **`deviceUid` and a device's company are immutable** after registration:
-   either would corrupt the earnings history. Delete and re-register instead.
+   either would corrupt the earnings history. **Known limitation:** a deleted
+   device still holds its id and terminal number (the unique constraints
+   cover deleted rows too), so re-registering the same id after a delete is
+   refused for now. Partial unique indexes (`WHERE deleted_at IS NULL`) would
+   lift that; it is a schema change, so it waits for a decision.
 9. **Companies are view-only for now**, per the brief ("ჯერჯერობით მივცეთ
    მხოლოდ ხედვის უფლება" — editing rights get decided later). A company sees
    its panel (company data + objects) → an object's devices → a device's

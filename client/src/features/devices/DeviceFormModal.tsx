@@ -37,8 +37,13 @@ export const DeviceFormModal = ({
   const { message } = App.useApp();
   const { isAdmin, user } = useAuth();
   const queryClient = useQueryClient();
+  // On edit the company field is never set (it is fixed), so the object list
+  // comes from the device's own company.
   const selectedCompanyId =
-    Form.useWatch("companyId", form) ?? companyId ?? user?.companyId;
+    Form.useWatch("companyId", form) ??
+    companyId ??
+    device?.companyId ??
+    user?.companyId;
 
   const uids = useQuery({
     queryKey: queryKeys.unregisteredOptions,
@@ -82,8 +87,15 @@ export const DeviceFormModal = ({
   }, [open, device, companyId, siteId, form]);
 
   const mutation = useMutation({
-    mutationFn: (values: DevicePayload) =>
-      device ? devicesApi.update(device.id, values) : devicesApi.create(values),
+    mutationFn: (values: DevicePayload) => {
+      if (!device) return devicesApi.create(values);
+      // The device id and company are fixed after registration, and the API
+      // refuses them on update - the form shows the id, so drop both here.
+      const changes: Partial<DevicePayload> = { ...values };
+      delete changes.deviceUid;
+      delete changes.companyId;
+      return devicesApi.update(device.id, changes);
+    },
     onSuccess: async () => {
       message.success(device ? t("devices.updated") : t("devices.registered"));
       await Promise.all([

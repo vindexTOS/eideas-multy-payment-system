@@ -1,6 +1,15 @@
-import { PlusOutlined } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Descriptions, Space, Table, Tag } from "antd";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  App,
+  Button,
+  Card,
+  Descriptions,
+  Popconfirm,
+  Space,
+  Table,
+  Tag,
+} from "antd";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -10,8 +19,9 @@ import { useAuth } from "@/features/auth/useAuth";
 import { sitesApi } from "@/features/sites/api";
 import { SiteFormModal } from "@/features/sites/SiteFormModal";
 import { money } from "@/lib/format";
+import { errorMessage } from "@/lib/http";
 import { queryKeys } from "@/lib/queryKeys";
-import type { SiteSummary } from "@/types/api";
+import type { Site, SiteSummary } from "@/types/api";
 import { companiesApi } from "./api";
 
 /** Company -> its objects (addresses). Drill down continues on each object. */
@@ -20,7 +30,11 @@ export const CompanyDetailPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isAdmin, isCompany } = useAuth();
-  const [creating, setCreating] = useState(false);
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  // undefined = form closed, null = new object, Site = editing that object.
+  const [editing, setEditing] = useState<Site | null | undefined>(undefined);
+  const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
 
   const company = useQuery({
     queryKey: queryKeys.company(companyId),
@@ -33,6 +47,67 @@ export const CompanyDetailPage = () => {
     queryFn: () => sitesApi.list({ companyId, limit: 100 }),
     enabled: !!companyId,
   });
+
+  // A list row has no comment, so Edit loads the full object first.
+  const startEdit = async (id: string) => {
+    setLoadingEdit(id);
+    try {
+      setEditing(
+        await queryClient.fetchQuery({
+          queryKey: queryKeys.site(id),
+          queryFn: () => sitesApi.get(id),
+          staleTime: 0,
+        }),
+      );
+    } catch (error) {
+      message.error(errorMessage(error));
+    } finally {
+      setLoadingEdit(null);
+    }
+  };
+
+  const remove = useMutation({
+    mutationFn: sitesApi.remove,
+    onSuccess: async () => {
+      message.success(t("sites.deleted"));
+      // Its devices were detached, so device lists change too.
+      await Promise.all(
+        ["sites", "site", "devices", "device", "companies"].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      );
+    },
+    onError: (error) => message.error(errorMessage(error)),
+  });
+
+  const actionColumn = {
+    title: "",
+    key: "actions",
+    width: 90,
+    render: (_: unknown, row: SiteSummary) => (
+      <Space>
+        <Button
+          size="small"
+          icon={<EditOutlined />}
+          aria-label={t("common.edit")}
+          loading={loadingEdit === row.id}
+          onClick={() => startEdit(row.id)}
+        />
+        <Popconfirm
+          title={t("sites.deleteConfirm")}
+          description={t("sites.deleteHint")}
+          onConfirm={() => remove.mutate(row.id)}
+        >
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            aria-label={t("common.delete")}
+          />
+        </Popconfirm>
+      </Space>
+    ),
+  };
 
   const columns = [
     {
@@ -74,6 +149,8 @@ export const CompanyDetailPage = () => {
           <Tag>{t("common.inactive")}</Tag>
         ),
     },
+    // Companies are view-only: objects are edited and deleted by an admin.
+    ...(isAdmin ? [actionColumn] : []),
   ];
 
   return (
@@ -96,7 +173,7 @@ export const CompanyDetailPage = () => {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => setCreating(true)}
+              onClick={() => setEditing(null)}
             >
               {t("sites.create")}
             </Button>
@@ -163,9 +240,10 @@ export const CompanyDetailPage = () => {
       </Space>
 
       <SiteFormModal
-        open={creating}
+        open={editing !== undefined}
+        site={editing}
         companyId={companyId}
-        onClose={() => setCreating(false)}
+        onClose={() => setEditing(undefined)}
       />
     </>
   );

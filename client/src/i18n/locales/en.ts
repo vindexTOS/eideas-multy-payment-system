@@ -86,6 +86,10 @@ export const en = {
     searchPlaceholder: "Name or address",
     created: "Object created",
     updated: "Object updated",
+    deleteConfirm: "Delete this object?",
+    deleteHint:
+      "Its devices stay, just without an object. Payment history is kept.",
+    deleted: "Object deleted",
   },
   devices: {
     title: "Devices",

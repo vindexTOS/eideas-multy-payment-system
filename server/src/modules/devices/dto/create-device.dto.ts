@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
   IsLatitude,
@@ -15,6 +15,7 @@ import {
 } from 'class-validator';
 import { DeviceStatus } from '../../../shared/enums/device-status.enum';
 import { DeviceType } from '../../../shared/enums/device-type.enum';
+import { blankToNull } from '../../../shared/utils/blank-to-null.util';
 
 export class CreateDeviceDto {
   @ApiProperty({
@@ -41,9 +42,10 @@ export class CreateDeviceDto {
     description: 'Free-text op mode, used while the device type list is not final',
   })
   @IsOptional()
+  @Transform(blankToNull)
   @IsString()
   @MaxLength(120)
-  typeLabel?: string;
+  typeLabel?: string | null;
 
   @ApiProperty({ description: 'Required for admins; forced to own company otherwise' })
   @IsOptional()
@@ -71,17 +73,23 @@ export class CreateDeviceDto {
   @Max(100)
   percentTariff: number;
 
-  @ApiPropertyOptional({ description: 'Terminal number, optional but never duplicated' })
+  @ApiPropertyOptional({
+    description: 'Terminal number, optional but never duplicated. Blank = no number.',
+  })
   @IsOptional()
+  // An emptied field must mean "no number" (NULL), never "": the column is
+  // unique, so a second blank "" would be refused as a duplicate.
+  @Transform(blankToNull)
   @IsString()
   @MaxLength(64)
-  number?: string;
+  number?: string | null;
 
   @ApiPropertyOptional({ description: 'Duplicates are allowed here' })
   @IsOptional()
+  @Transform(blankToNull)
   @IsString()
   @MaxLength(320)
-  address?: string;
+  address?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -95,9 +103,10 @@ export class CreateDeviceDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(blankToNull)
   @IsString()
   @MaxLength(2000)
-  comment?: string;
+  comment?: string | null;
 
   @ApiPropertyOptional({ enum: DeviceStatus, default: DeviceStatus.ACTIVE })
   @IsOptional()

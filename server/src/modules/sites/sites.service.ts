@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { PaginatedResult } from '../../shared/dto/paginated-result.dto';
 import { PaginationQueryDto } from '../../shared/dto/pagination-query.dto';
 import { UserRole } from '../../shared/enums/user-role.enum';
@@ -8,6 +8,7 @@ import { AuthenticatedUser } from '../../shared/interfaces/authenticated-user.in
 import { AccessScopeService } from '../../shared/services/access-scope.service';
 import { DeviceAssignmentService } from '../access/device-assignment.service';
 import { CompaniesService } from '../companies/companies.service';
+import { Device } from '../devices/entities/device.entity';
 import { EarningsService } from '../earnings/earnings.service';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { SiteSummaryDto } from './dto/site-summary.dto';
@@ -34,6 +35,7 @@ export class SitesService {
     private readonly earnings: EarningsService,
     private readonly accessScope: AccessScopeService,
     private readonly assignments: DeviceAssignmentService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async list(
@@ -139,8 +141,13 @@ export class SitesService {
 
   async remove(user: AuthenticatedUser, id: string): Promise<void> {
     const site = await this.findOneScoped(user, id);
-    // Devices keep existing with site_id = NULL (ON DELETE SET NULL), so a
-    // deleted object never silently takes terminals and their money with it.
-    await this.sites.softRemove(site);
+    // A deleted object never takes its terminals and their money with it: they
+    // stay, just without an object, and can be put on another one. The FK's
+    // ON DELETE SET NULL only fires on a hard delete, and this one is soft, so
+    // the terminals are detached here, in the same transaction.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(Device, { siteId: site.id }, { siteId: null });
+      await manager.softRemove(site);
+    });
   }
 }
