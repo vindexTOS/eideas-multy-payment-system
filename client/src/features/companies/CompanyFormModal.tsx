@@ -22,12 +22,16 @@ export const CompanyFormModal = ({
 
   useEffect(() => {
     if (!open) return;
+    // Always start clean: the form instance outlives the modal, so without
+    // this a password typed earlier (even for another company) stays in the
+    // field on Edit - visible, and saved again as that company's password.
+    form.resetFields();
     if (company)
       form.setFieldsValue({
         ...company,
         comment: company.comment ?? undefined,
+        password: undefined,
       });
-    else form.resetFields();
   }, [open, company, form]);
 
   const mutation = useMutation({
