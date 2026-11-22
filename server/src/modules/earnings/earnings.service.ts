@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaymentStatus } from '../../shared/enums/payment-status.enum';
 import { round2, toAmount } from '../../shared/utils/money.util';
-import { MonthRange, buildMonthRange, toMonthKey } from '../../shared/utils/month-range.util';
+import { MonthRange, buildMonthRange } from '../../shared/utils/month-range.util';
 import { Payment } from '../payments/entities/payment.entity';
 import { EarningsMonthDto, EarningsSeriesDto, EarningsTotalsDto } from './dto/earnings-series.dto';
 
@@ -16,6 +16,7 @@ export interface EarningsScope {
 }
 
 interface RawMonthRow {
+  /** `YYYY-MM`, built in SQL (see rawMonthlyRows). */
   month: string;
   total: string;
   commission: string;
@@ -58,9 +59,7 @@ export class EarningsService {
     const rows = await this.rawMonthlyRows(scope, window);
 
     const byMonth = new Map<string, RawMonthRow>();
-    for (const row of rows) {
-      byMonth.set(toMonthKey(new Date(row.month)), row);
-    }
+    for (const row of rows) byMonth.set(row.month, row);
 
     const months: EarningsMonthDto[] = window.months.map(({ month }) => {
       const row = byMonth.get(month);
@@ -182,9 +181,18 @@ export class EarningsService {
     return result;
   }
 
+  /**
+   * The month key is built in SQL as `YYYY-MM` text. Returned as a date it
+   * came back as a timestamp without zone, which the pg driver reads in the
+   * server's local zone: at UTC+4 (Tbilisi) "2026-11-01 00:00" became
+   * 31 Oct 20:00 UTC, so every month's money showed in the previous month.
+   */
   private rawMonthlyRows(scope: EarningsScope, window: MonthRange): Promise<RawMonthRow[]> {
     return this.baseQuery(scope, window)
-      .select("date_trunc('month', payment.paid_at AT TIME ZONE 'UTC')", 'month')
+      .select(
+        "to_char(date_trunc('month', payment.paid_at AT TIME ZONE 'UTC'), 'YYYY-MM')",
+        'month',
+      )
       .addSelect('COALESCE(SUM(payment.amount), 0)', 'total')
       .addSelect('COALESCE(SUM(payment.commission), 0)', 'commission')
       .addSelect('COUNT(payment.id)', 'count')
